@@ -1,0 +1,17 @@
+raise_water_level = 0.005 # 100 percent
+raise_window = 10 # in minutes
+# 1 market price
+# 2 Ask/BidPrice1
+# .. 
+# 11 Ask/BidPrice10
+buy_price = 1 
+buy_volume = 1000
+
+buy_cold_time = 30 # in seconds
+sell_delay_time = 60 # in seconds
+# 1 passive
+# 2 active
+sell_type = 1
+sell_price = 2
+sell_all_type = 1
+sell_all_delay = 30
