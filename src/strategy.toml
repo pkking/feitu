@@ -1,17 +1,17 @@
-raise_water_level = 0.005 # 100 percent
-raise_window = 10 # in minutes
+buy_point = 0.005 # 100 percent
+gap_window = 1000000 # 10 minute
 # 1 market price
 # 2 Ask/BidPrice1
 # .. 
 # 11 Ask/BidPrice10
 buy_price = 1 
-buy_volume = 1000
+buy_volume = 1000 # buy 1000 shares once
 
-buy_cold_time = 30 # in seconds
-sell_delay_time = 60 # in seconds
+buy_cold_time = 30000 # 30s 
+sell_delay_time = 60000 # 60s
 # 1 passive
 # 2 active
 sell_type = 1
 sell_price = 2
 sell_all_type = 1
-sell_all_delay = 30
+sell_all_delay = 30000 # 30s

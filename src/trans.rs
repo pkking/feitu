@@ -3,15 +3,15 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct transaction {
-    Tkr :String,
-    Time :u64,
-    Index :u64,
-    Price :u64,
-    Volume :u64,
-    Turnover :u64,
-    BSFlag :char,
-    OrderKind :u64,
-    FunctionCode :u64,
-    AskOrder :u64,
-    BidOrder :u64,
+    pub Tkr :String,
+    pub Time :u64,
+    pub Index :u64,
+    pub Price :u64,
+    pub Volume :u64,
+    pub Turnover :u64,
+    pub BSFlag :char,
+    pub OrderKind :u64,
+    pub FunctionCode :u64,
+    pub AskOrder :u64,
+    pub BidOrder :u64,
 }
