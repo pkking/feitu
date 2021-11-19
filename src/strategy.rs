@@ -1,14 +1,11 @@
 use serde::Deserialize;
-use std::convert::TryInto;
-use std::f64::{MAX as MAXF64, MIN as MINF64};
-use std::u64::MAX;
-use std::{fs::File, u64::MIN};
+use std::{fs::File, u64::MIN, u64::MAX};
 use std::error::Error;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::io::Read;
-use chrono::{DateTime, TimeZone, NaiveDateTime, Utc};
 use csv;
 use std::io::BufReader;
+use std::cmp::min;
 
 use super::tick;
 #[derive(Debug)]
@@ -17,8 +14,12 @@ pub struct order {
     time: u64,
     volume: usize,
     sell_price :u64,
+    sell_in_all :bool,
+    sell_price_avg :u64,
     left :usize,
-    profit :u64,
+    profit :i128,
+    tax :u64,
+    commission: u64,
 }
 #[derive(Debug, Deserialize)]
 pub struct config {
@@ -82,8 +83,6 @@ pub fn new_stock_sys(config :&str) -> Result<StockSys, Box<dyn Error>> {
     })
 }
 
-
-
 pub fn read_tick_from_data(path :&str) -> Result<Vec<tick::Tick>, Box<dyn Error>> {
     let mut res :Vec<tick::Tick> = Vec::new();
     let f = File::open(path)?;
@@ -98,7 +97,40 @@ pub fn read_tick_from_data(path :&str) -> Result<Vec<tick::Tick>, Box<dyn Error>
     Ok(res)
 }
 
+impl Display for order {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "open price:{} buy time:{} volume:{} left:{} sell price:{} profit:{} tax:{} commission:{}", self.open_price, self.time, self.volume, self.left, self.sell_price_avg, self.profit, self.tax, self.commission)?;
+        Ok(())
+    }
+}
+
 impl StockSys {
+    pub fn statistics(&self) {
+        let mut profit :i128 = 0;
+        let mut tax_commission :u64 = 0;
+        let mut win_orders :Vec<&order> = Vec::new();
+        let mut lose_orders :Vec<&order> = Vec::new();
+
+        for order in &self.orders {
+            if order.profit > 0 {
+                win_orders.push(order);
+            } else {
+                lose_orders.push(order);
+            }
+            profit += order.profit;
+            tax_commission += order.tax + order.commission;
+        }
+        println!("profit :{}", profit);
+        println!("profit with tax commission:{}", profit - tax_commission as i128);
+        println!("profit wins:");
+        for order in win_orders {
+            println!("{}", order);
+        }
+        println!("profit lose:");
+        for order in lose_orders {
+            println!("{}", order);
+        }
+    }
     fn get_gap(&mut self) {
         let mut min = MAX;
         //let mut max = MIN;
@@ -119,14 +151,15 @@ impl StockSys {
     }
     // 判断是否可以交易的条件：
     // 1. 是否在交易时间段
+    // 暂时不考虑T+0限制
     fn can_trade(&self, tick :&tick::Tick) -> bool {
-        //return (now >= 93000000 && now <= 113000000) || (now >= 130000000 && now <= 150000000);
-        return tick.nTime >= 93000000 && tick.nTime <= 93300000 ;
+        return (tick.nTime >= 93000000 && tick.nTime <= 113000000) || (tick.nTime >= 130000000 && tick.nTime <= 150000000);
+        //return tick.nTime >= 93000000 && tick.nTime <= 113000000 ;
     }
 
     pub fn do_strategy(&mut self, tick :&tick::Tick) {
         if self.can_trade(tick) {
-            println!("will do strategy {} now price:{}", tick.nTime, tick.nPrice);
+            //println!("will do strategy {} now price:{}", tick.nTime, tick.nPrice);
             self.update_gap(tick);
             self.process_order(tick);
         }
@@ -152,7 +185,7 @@ impl StockSys {
         }
 
         self.orders.push(
-            order { open_price: value/self.conf.buy_volume as u64, time: tick.nTime, volume: self.conf.buy_volume , sell_price: 0, left: self.conf.buy_volume, profit: 0}
+            order { open_price: value/self.conf.buy_volume as u64, time: tick.nTime, volume: self.conf.buy_volume , sell_price: 0, left: self.conf.buy_volume, profit: 0, sell_price_avg: 0, tax: 0, commission: 0, sell_in_all:false}
         );
         self.last_buy_order = self.orders.len() - 1;
         self.gap_window.clear();
@@ -165,7 +198,7 @@ impl StockSys {
         // 挂单卖出不用考虑跌停的情况
         for order in &self.orders {
             if tick.nTime > order.time + self.conf.sell_delay_time {
-                println!("sell order:{:?}", order);
+                println!("sell order:{}", order);
                 return true;
             }
         }
@@ -175,26 +208,37 @@ impl StockSys {
     fn sell(&mut self, tick :&tick::Tick) {
         // 挂单卖出不用考虑跌停的情况
         for order in &mut self.orders {
-            if tick.nTime > order.time + self.conf.sell_delay_time && order.left > 0{
+            if tick.nTime > order.time + self.conf.sell_delay_time && order.left > 0 {
                 if order.sell_price == 0 {
-                    order.sell_price = tick.nAskPrice1;
+                    order.sell_price = tick.nAskPrice1; // 以卖1挂卖单
                 }
+                // 超过时间没有卖完，需要以市价卖出
+                if tick.nTime > order.time + self.conf.sell_all_delay && order.sell_in_all == false {
+                    println!("change price to {} at {} to sell left {}", tick.nPrice, tick.nTime, order.left);
+                    order.sell_price = tick.nPrice;
+                    order.sell_in_all = true;
+                }
+                // 根据后续的买单来慢慢吃挂上去的单
                 for (p, v) in [(tick.nBidPrice1,tick.nBidVolume1), (tick.nBidPrice2, tick.nBidVolume2),(tick.nBidPrice3,tick.nBidVolume3), (tick.nBidPrice4, tick.nBidVolume4),(tick.nBidPrice5,tick.nBidVolume5), (tick.nBidPrice6, tick.nBidVolume6),(tick.nBidPrice7,tick.nBidVolume7), (tick.nBidPrice8, tick.nBidVolume8),(tick.nBidPrice9,tick.nBidVolume9), (tick.nBidPrice10, tick.nBidVolume10)].iter() {
                     if *p >= order.sell_price {
-                        println!("sell order:{:?}", order);
                         if *v >= order.left as u64 {
                             println!("sell {} at price {}", order.left, p);
-                            order.profit += order.left as u64 * *p;
+                            order.profit += order.left as i128 * *p as i128; // 先计算总的收入
+                            order.sell_price_avg = order.profit as u64/order.volume as u64; // 算出平均卖价
+                            order.profit -= order.open_price as i128 * order.volume as i128; // 减去买入成本
+                            order.tax = order.sell_price_avg  * order.volume as u64 / 1000; // 减去印花税 1/1000
+                            order.commission = min(order.sell_price_avg  * order.volume as u64 * 3 / 10000, 50000) + min(order.open_price * order.volume as u64 * 3 / 10000, 50000); // 减去佣金 3/10000
                             order.left = 0;
+                            println!("sell order:{}", order);
                             break;
                         } else {
                             println!("sell {} at price {}", v, p);
-                            order.profit += *v * *p;
+                            order.profit += *v as i128 * *p as i128;
                             order.left -= *v as usize;
                         }
+                        //println!("sell order:{:?}", order);
                     }
                 }
-
             }
         }
     }
@@ -256,6 +300,6 @@ impl StockSys {
             self.get_gap();
         }
         self.gap_rate = (tick.nPrice as f64 - self.min as f64)/self.min as f64;
-        println!("new gap_rate:{} at {} price {} min {}", self.gap_rate, tick.nTime, tick.nPrice, self.min);
+        //println!("new gap_rate:{} at {} price {} min {}", self.gap_rate, tick.nTime, tick.nPrice, self.min);
     }
 }

@@ -14,6 +14,8 @@ fn back_testing() {
     for tick in ticks {
         sys.do_strategy(&tick);
     }
+
+    sys.statistics();
 }
 
 fn main() {
