@@ -1,17 +1,19 @@
-buy_point = 0.005 # 100 percent
-gap_window = 1000000 # 10 minute
-# 1 market price
-# 2 Ask/BidPrice1
-# .. 
-# 11 Ask/BidPrice10
-buy_price = 1 
-buy_volume = 1000 # buy 1000 shares once
+buy_point = 0.005 # 涨幅0.5%就买入
+gap_window = 600 # 涨幅的时间窗为10分钟
+buy_volume = 1000 # 每次买入1000股
+buy_cooldown_time = 30 # 两次购买的间隔时间
+sell_delay_time = 60 # 买入之后60s，首次卖出的延迟时间
+sell_all_delay = 30 # 挂单卖出没有全部成交的等待时间
+# 日志级别
+# debug
+# info
+# error
+# trace
+# warn
+log_level = "debug"
+log_file = "backtest.log"
+log_size = 100 # in MB
+log_count = 1 # rotated number
 
-buy_cold_time = 30000 # 30s 
-sell_delay_time = 60000 # 60s
-# 1 passive
-# 2 active
-sell_type = 1
-sell_price = 2
-sell_all_type = 1
-sell_all_delay = 30000 # 30s
+tick_data = "../601012.SH.Tick.csv"
+trans_data = "../601012.SH.Transaction.csv"

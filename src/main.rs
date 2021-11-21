@@ -1,15 +1,18 @@
+#[macro_use]
+extern crate log;
 
-
-mod tick;
-mod trans;
 mod strategy;
+mod tick;
+mod transaction;
 
 use strategy::{new_stock_sys, read_tick_from_data};
-
+use transaction::read_trans_data_from_file;
 
 fn back_testing() {
     let mut sys = new_stock_sys("src/strategy.toml").expect("fail to create new sotck instance");
-    let ticks = read_tick_from_data("../601012.SH.Tick.csv").expect("read ticks data failed");
+    sys.init_logger();
+    let ticks = read_tick_from_data(&sys.conf.tick_data).expect("read ticks data failed!");
+   // sys.trans = read_trans_data_from_file(&sys.conf.trans_data).expect("read transaction data failed!");
 
     for tick in ticks {
         sys.do_strategy(&tick);
@@ -19,9 +22,5 @@ fn back_testing() {
 }
 
 fn main() {
-   // println!("config {:?}", &conf);
-    //let ticks = printcsv::<tick::Tick>("../601012.SH.Tick.csv").unwrap();
-
     back_testing();
-    //printcsv::<trans::transaction>("../601012.SH.Transaction.csv");
 }
